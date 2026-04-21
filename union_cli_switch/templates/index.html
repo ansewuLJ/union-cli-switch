@@ -51,7 +51,8 @@
         </section>
 
         <section class="sidebar-card">
-          <div class="sidebar-label">当前工具文件</div>
+          <div class="sidebar-label">会写入这些文件</div>
+          <p class="muted">这里只做路径提醒，实际修改以上面的表单为准。</p>
           {% for label, path in tool_file_paths.items() %}
           <div class="path-row">
             <span>{{ label }}</span>
@@ -59,6 +60,7 @@
           </div>
           {% endfor %}
         </section>
+
       </aside>
 
       <main class="workspace">
@@ -235,26 +237,6 @@
               </form>
             </section>
             {% endif %}
-
-            <section class="panel">
-              <div class="panel-head">
-                <div>
-                  <div class="section-label">Live Preview</div>
-                  <h2>用户级文件</h2>
-                </div>
-              </div>
-              <div class="preview-list">
-                {% for preview in live_previews %}
-                <article class="preview-card">
-                  <div class="preview-head">
-                    <strong>{{ preview.label }}</strong>
-                    <code>{{ preview.path }}</code>
-                  </div>
-                  <pre>{{ preview.content }}</pre>
-                </article>
-                {% endfor %}
-              </div>
-            </section>
           </section>
         </section>
         {% elif view == 'mcp' %}
