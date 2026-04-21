@@ -6,6 +6,8 @@
     <title>union-cli-switch</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script>
+      const LAYOUT_STORAGE_KEY = "union-cli-switch-layout";
+
       function toggleSecret(button) {
         const input = document.getElementById(button.dataset.target);
         if (!input) return;
@@ -24,6 +26,91 @@
         if (!toast) return;
         toast.classList.add("toast-hide");
       }
+
+      function saveLayout(layout) {
+        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(layout));
+      }
+
+      function readLayout() {
+        try {
+          return JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || "{}");
+        } catch (error) {
+          return {};
+        }
+      }
+
+      function applySavedLayout() {
+        if (window.innerWidth <= 960) return;
+        const shell = document.querySelector(".shell");
+        const contentGrid = document.querySelector(".content-grid");
+        const saved = readLayout();
+        if (shell && saved.sidebarWidth) {
+          shell.style.setProperty("--sidebar-width", `${saved.sidebarWidth}px`);
+        }
+        if (contentGrid && saved.listWidth && saved.detailWidth) {
+          contentGrid.style.setProperty("--list-width", `${saved.listWidth}px`);
+          contentGrid.style.setProperty("--detail-width", `${saved.detailWidth}px`);
+        }
+      }
+
+      function setupResizer(handleSelector, onMove) {
+        const handle = document.querySelector(handleSelector);
+        if (!handle || window.innerWidth <= 960) return;
+
+        handle.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+          document.body.classList.add("is-resizing");
+
+          const moveListener = (moveEvent) => onMove(moveEvent);
+          const upListener = () => {
+            document.body.classList.remove("is-resizing");
+            window.removeEventListener("mousemove", moveListener);
+            window.removeEventListener("mouseup", upListener);
+          };
+
+          window.addEventListener("mousemove", moveListener);
+          window.addEventListener("mouseup", upListener);
+        });
+      }
+
+      function setupLayoutResize() {
+        if (window.innerWidth <= 960) return;
+
+        const shell = document.querySelector(".shell");
+        const contentGrid = document.querySelector(".content-grid");
+        if (!shell || !contentGrid) return;
+
+        setupResizer(".shell-resizer", (event) => {
+          const min = 220;
+          const max = Math.min(420, window.innerWidth * 0.38);
+          const sidebarWidth = Math.min(Math.max(event.clientX, min), max);
+          shell.style.setProperty("--sidebar-width", `${sidebarWidth}px`);
+
+          const current = readLayout();
+          saveLayout({ ...current, sidebarWidth });
+        });
+
+        setupResizer(".content-resizer", (event) => {
+          const rect = contentGrid.getBoundingClientRect();
+          const handleWidth = 12;
+          const total = rect.width - handleWidth;
+          const minList = 280;
+          const minDetail = 360;
+          const listWidth = Math.min(Math.max(event.clientX - rect.left, minList), total - minDetail);
+          const detailWidth = total - listWidth;
+
+          contentGrid.style.setProperty("--list-width", `${listWidth}px`);
+          contentGrid.style.setProperty("--detail-width", `${detailWidth}px`);
+
+          const current = readLayout();
+          saveLayout({ ...current, listWidth, detailWidth });
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        applySavedLayout();
+        setupLayoutResize();
+      });
     </script>
   </head>
   <body>
@@ -62,6 +149,8 @@
         </section>
 
       </aside>
+
+      <div class="resizer shell-resizer" aria-hidden="true"></div>
 
       <main class="workspace">
         <header class="topbar">
@@ -134,6 +223,8 @@
               {% endfor %}
             </div>
           </section>
+
+          <div class="resizer content-resizer" aria-hidden="true"></div>
 
           <section class="detail-column">
             <section class="panel">
@@ -282,6 +373,9 @@
               {% endfor %}
             </div>
           </section>
+
+          <div class="resizer content-resizer" aria-hidden="true"></div>
+
           <section class="detail-column">
             <section class="panel">
               <div class="panel-head">
@@ -341,6 +435,9 @@
               {% endfor %}
             </div>
           </section>
+
+          <div class="resizer content-resizer" aria-hidden="true"></div>
+
           <section class="detail-column">
             <section class="panel">
               <div class="panel-head">

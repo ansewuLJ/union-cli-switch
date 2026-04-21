@@ -37,8 +37,9 @@ a {
 }
 
 .shell {
+  --sidebar-width: 260px;
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: minmax(220px, var(--sidebar-width)) 12px minmax(0, 1fr);
   min-height: 100vh;
 }
 
@@ -248,14 +249,57 @@ h3 {
 }
 
 .content-grid {
+  --list-width: 1fr;
+  --detail-width: 0.95fr;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(420px, 0.95fr);
+  grid-template-columns: minmax(280px, var(--list-width)) 12px minmax(360px, var(--detail-width));
   gap: 18px;
 }
 
 .detail-column {
   display: grid;
   gap: 18px;
+  min-width: 0;
+}
+
+.list-panel {
+  min-width: 0;
+}
+
+.resizer {
+  position: relative;
+  cursor: col-resize;
+  width: 12px;
+  min-width: 12px;
+}
+
+.resizer::before {
+  content: "";
+  position: absolute;
+  top: 20px;
+  bottom: 20px;
+  left: 50%;
+  margin: auto;
+  width: 2px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  background: rgba(157, 188, 245, 0);
+  transition: background 0.18s ease, width 0.18s ease;
+}
+
+.resizer:hover::before {
+  width: 3px;
+  background: rgba(157, 188, 245, 0.65);
+}
+
+body.is-resizing {
+  user-select: none;
+  cursor: col-resize;
+}
+
+body.is-resizing .resizer::before {
+  width: 3px;
+  background: rgba(45, 121, 246, 0.75);
 }
 
 .panel {
@@ -518,6 +562,25 @@ pre {
   background: #0f1725;
   color: #eaf3ff;
   font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .resizer {
+    display: none;
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .code-textarea {
