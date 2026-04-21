@@ -35,9 +35,9 @@ bash scripts/install-user-service.sh
 这个脚本会写入 `~/.config/systemd/user/union-cli-switch.service`，并直接执行 `systemctl --user enable --now`。
 
 ```bash
-systemctl --user status union-cli-switch.service
-systemctl --user stop union-cli-switch.service
-systemctl --user disable union-cli-switch.service
+systemctl --user status union-cli-switch.service   # 查看运行状态
+systemctl --user stop union-cli-switch.service     # 立即停止服务
+systemctl --user disable union-cli-switch.service  # 取消开机自启
 ```
 
 ## 数据位置
