@@ -26,6 +26,20 @@ uv run python main.py
 
 默认监听 `http://127.0.0.1:8765`
 
+## 用户级开机自启
+
+```bash
+bash scripts/install-user-service.sh
+```
+
+这个脚本会写入 `~/.config/systemd/user/union-cli-switch.service`，并直接执行 `systemctl --user enable --now`。
+
+```bash
+systemctl --user status union-cli-switch.service
+systemctl --user stop union-cli-switch.service
+systemctl --user disable union-cli-switch.service
+```
+
 ## 数据位置
 
 - 应用状态：`~/.union-cli-switch/state.json`
