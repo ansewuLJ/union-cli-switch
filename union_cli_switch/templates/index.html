@@ -181,7 +181,7 @@
               <form method="post" action="{{ url_for('save_provider') }}" class="form">
                 <input type="hidden" name="tool" value="{{ tool }}">
                 <input type="hidden" name="provider_id" value="{{ selected_provider_form.id }}">
-                <label>显示名称<input name="name" value="{{ selected_provider_form.name }}" required></label>
+                <label>供应商名称<input name="name" value="{{ selected_provider_form.name }}" required></label>
                 <label>Base URL<input name="base_url" value="{{ selected_provider_form.base_url }}" required></label>
                 <label>API Key
                   <div class="secret-field">
@@ -311,7 +311,7 @@
               <form method="post" action="{{ url_for('save_mcp') }}" class="form">
                 <input type="hidden" name="tool" value="{{ tool }}">
                 <input type="hidden" name="server_id" value="{{ selected_mcp.id }}">
-                <label>显示名称<input name="name" value="{{ selected_mcp.name }}" required></label>
+                <label>供应商名称<input name="name" value="{{ selected_mcp.name }}" required></label>
                 <label>传输方式
                   <select name="transport">
                     <option value="stdio" {% if selected_mcp.transport == 'stdio' %}selected{% endif %}>stdio</option>
