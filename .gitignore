@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.py[cod]
+
+cc-switch/
+cc-switch-web/
+
+.DS_Store

@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>union-cli-switch</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+      function toggleSecret(button) {
+        const input = document.getElementById(button.dataset.target);
+        if (!input) return;
+        const reveal = input.type === "password";
+        input.type = reveal ? "text" : "password";
+        button.setAttribute("aria-pressed", reveal ? "true" : "false");
+        button.setAttribute("title", reveal ? "隐藏敏感信息" : "显示敏感信息");
+        const icon = button.querySelector(".secret-icon");
+        if (icon) {
+          icon.textContent = reveal ? "🙈" : "👁";
+        }
+      }
+
+      function dismissToast(button) {
+        const toast = button.closest(".flash.toast");
+        if (!toast) return;
+        toast.classList.add("toast-hide");
+      }
+    </script>
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">UC</div>
+          <div>
+            <div class="brand-title">union-cli-switch</div>
+            <div class="brand-subtitle">Python user-level manager</div>
+          </div>
+        </div>
+
+        <nav class="tool-list">
+          {% for item in tools %}
+          <a class="tool-link {% if tool == item %}active{% endif %}" href="{{ url_for('index', tool=item, view=view) }}">
+            <span>{{ {'claude': 'Claude Code', 'codex': 'Codex', 'gemini': 'Gemini CLI'}[item] }}</span>
+          </a>
+          {% endfor %}
+        </nav>
+
+        <section class="sidebar-card">
+          <div class="sidebar-label">状态文件</div>
+          <code>{{ app_state_path }}</code>
+        </section>
+
+        <section class="sidebar-card">
+          <div class="sidebar-label">当前工具文件</div>
+          {% for label, path in tool_file_paths.items() %}
+          <div class="path-row">
+            <span>{{ label }}</span>
+            <code>{{ path }}</code>
+          </div>
+          {% endfor %}
+        </section>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <h1>{{ tool_label }}</h1>
+            <p class="muted">只管理用户级配置，不碰项目级 MCP。页面主线固定为 provider、MCP、skills。</p>
+          </div>
+          <div class="view-tabs">
+            {% for item in ['providers', 'mcp', 'skills'] %}
+            <a class="view-tab {% if view == item %}active{% endif %}" href="{{ url_for('index', tool=tool, view=item) }}">
+              {{ {'providers': '提供商', 'mcp': 'MCP', 'skills': 'Skills'}[item] }}
+            </a>
+            {% endfor %}
+          </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <section class="flash-stack">
+          {% for category, message in messages %}
+          <div class="flash toast {{ category }}">
+            <div class="toast-body">{{ message }}</div>
+            <button type="button" class="toast-close" aria-label="关闭提示" onclick="dismissToast(this)">×</button>
+          </div>
+          {% endfor %}
+        </section>
+        {% endif %}
+        {% endwith %}
+
+        {% if view == 'providers' %}
+        <section class="content-grid">
+          <section class="panel list-panel">
+            <div class="panel-head">
+              <div>
+                <div class="section-label">提供商列表</div>
+                <h2>{{ state[tool].providers|length }} 个 Provider</h2>
+              </div>
+              <a class="button ghost" href="{{ url_for('index', tool=tool, view='providers', new_provider=1) }}">新建</a>
+            </div>
+
+            <div class="provider-list">
+              {% for provider in state[tool].providers %}
+              <article class="provider-row {% if selected_provider and provider.id == selected_provider.id %}is-selected{% endif %}">
+                <a class="provider-main" href="{{ url_for('index', tool=tool, view='providers', provider_id=provider.id) }}">
+                  <div class="provider-title-row">
+                    <h3>{{ provider.name }}</h3>
+                    {% if provider.id == state[tool].current_provider_id %}
+                    <span class="badge success">使用中</span>
+                    {% endif %}
+                  </div>
+                  <p class="provider-url">{{ provider.base_url or '未填写 base_url' }}</p>
+                </a>
+                <div class="provider-actions">
+                  <form method="post" action="{{ url_for('activate_provider') }}">
+                    <input type="hidden" name="tool" value="{{ tool }}">
+                    <input type="hidden" name="provider_id" value="{{ provider.id }}">
+                    <button type="submit" class="button {% if provider.id == state[tool].current_provider_id %}muted{% else %}primary{% endif %}" {% if provider.id == state[tool].current_provider_id %}disabled{% endif %}>
+                      {% if provider.id == state[tool].current_provider_id %}已启用{% else %}启用{% endif %}
+                    </button>
+                  </form>
+                  <form method="post" action="{{ url_for('remove_provider') }}">
+                    <input type="hidden" name="tool" value="{{ tool }}">
+                    <input type="hidden" name="provider_id" value="{{ provider.id }}">
+                    <button type="submit" class="button danger">删除</button>
+                  </form>
+                </div>
+              </article>
+              {% else %}
+              <p class="muted">还没有 provider，先新建一个。</p>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="detail-column">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">提供商详情</div>
+                  <h2>{{ '编辑 Provider' if selected_provider else '新建 Provider' }}</h2>
+                </div>
+              </div>
+              {% if selected_provider %}
+              <div class="provider-hint {% if selected_provider.id == state[tool].current_provider_id %}is-current{% else %}is-draft{% endif %}">
+                {% if selected_provider.id == state[tool].current_provider_id %}
+                当前编辑的是已启用配置，保存后会立即同步到真实配置。
+                {% else %}
+                当前编辑的是未启用配置，保存后只更新这条记录，需要手动点“启用”才会生效。
+                {% endif %}
+              </div>
+              {% else %}
+              <div class="provider-hint is-new">
+                这是新建配置，先测试和保存，确认没问题后再到左侧点“启用”。
+              </div>
+              {% endif %}
+              {% if tool == 'codex' %}
+              <form method="post" action="{{ url_for('save_codex_write_mode') }}" class="form mode-form">
+                <div class="section-label">Codex 写回模式</div>
+                <label class="checkbox mode-option">
+                  <input type="radio" name="write_mode" value="preserve" {% if state.codex.write_mode != 'template' %}checked{% endif %}>
+                  <span>保留现有结构</span>
+                  <span class="tooltip-anchor" tabindex="0">
+                    <span class="tooltip-icon">?</span>
+                    <span class="tooltip-bubble">尽量保留你当前 config.toml 的其它结构，只替换当前 provider 相关字段。</span>
+                  </span>
+                </label>
+                <label class="checkbox mode-option">
+                  <input type="radio" name="write_mode" value="template" {% if state.codex.write_mode == 'template' %}checked{% endif %}>
+                  <span>使用默认模板</span>
+                  <span class="tooltip-anchor" tabindex="0">
+                    <span class="tooltip-icon">?</span>
+                    <span class="tooltip-bubble">使用内置默认模板基底，内部占位会替换成当前 provider 的名字和字段。</span>
+                  </span>
+                </label>
+                <div class="button-row">
+                  <button type="submit" class="button ghost">保存模式</button>
+                </div>
+              </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('save_provider') }}" class="form">
+                <input type="hidden" name="tool" value="{{ tool }}">
+                <input type="hidden" name="provider_id" value="{{ selected_provider_form.id }}">
+                <label>显示名称<input name="name" value="{{ selected_provider_form.name }}" required></label>
+                <label>Base URL<input name="base_url" value="{{ selected_provider_form.base_url }}" required></label>
+                <label>API Key
+                  <div class="secret-field">
+                    <input
+                      id="api-key-input"
+                      type="password"
+                      name="api_key"
+                      value="{{ selected_provider_form.api_key }}"
+                      autocomplete="off"
+                      spellcheck="false">
+                    <button
+                      type="button"
+                      class="button ghost secret-toggle"
+                      data-target="api-key-input"
+                      aria-pressed="false"
+                      title="显示敏感信息"
+                      onclick="toggleSecret(this)">
+                      <span class="secret-icon" aria-hidden="true">👁</span>
+                    </button>
+                  </div>
+                </label>
+                {% for field in provider_fields[tool] %}
+                {% if field == 'requires_openai_auth' %}
+                <label class="checkbox"><input type="checkbox" name="{{ field }}" {% if selected_provider_form.tool_config.get(field) %}checked{% endif %}> requires_openai_auth</label>
+                {% else %}
+                <label>{{ field }}<input name="{{ field }}" value="{{ selected_provider_form.tool_config.get(field, '') }}"></label>
+                {% endif %}
+                {% endfor %}
+                <div class="button-row">
+                  <button type="submit" formaction="{{ url_for('run_test_provider') }}" formmethod="post" class="button ghost">测试</button>
+                  <button type="submit" class="button primary">保存配置</button>
+                </div>
+              </form>
+            </section>
+
+            {% if tool == 'codex' %}
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">默认模板</div>
+                  <h2>Codex Template</h2>
+                </div>
+              </div>
+              <form method="post" action="{{ url_for('save_codex_template') }}" class="form">
+                <label>模板内容（TOML）
+                  <textarea name="template_text" rows="18" class="code-textarea">{{ codex_template_text }}</textarea>
+                </label>
+                <div class="button-row">
+                  <button type="submit" class="button ghost">保存默认模板</button>
+                </div>
+              </form>
+            </section>
+            {% endif %}
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">Live Preview</div>
+                  <h2>用户级文件</h2>
+                </div>
+              </div>
+              <div class="preview-list">
+                {% for preview in live_previews %}
+                <article class="preview-card">
+                  <div class="preview-head">
+                    <strong>{{ preview.label }}</strong>
+                    <code>{{ preview.path }}</code>
+                  </div>
+                  <pre>{{ preview.content }}</pre>
+                </article>
+                {% endfor %}
+              </div>
+            </section>
+          </section>
+        </section>
+        {% elif view == 'mcp' %}
+        <section class="content-grid">
+          <section class="panel list-panel">
+            <div class="panel-head">
+              <div>
+                <div class="section-label">用户级 MCP</div>
+                <h2>{{ state[tool].mcp.servers|length }} 个服务器</h2>
+              </div>
+            </div>
+            <div class="provider-list">
+              {% for server in state[tool].mcp.servers %}
+              <article class="provider-row {% if selected_mcp and server.id == selected_mcp.id %}is-selected{% endif %}">
+                <a class="provider-main" href="{{ url_for('index', tool=tool, view='mcp', mcp_id=server.id) }}">
+                  <div class="provider-title-row">
+                    <h3>{{ server.name }}</h3>
+                    {% if server.enabled %}
+                    <span class="badge success">已启用</span>
+                    {% else %}
+                    <span class="badge">停用</span>
+                    {% endif %}
+                  </div>
+                  <p class="provider-url">{{ server.transport }}</p>
+                </a>
+                <div class="provider-actions">
+                  <form method="post" action="{{ url_for('toggle_mcp_enabled') }}">
+                    <input type="hidden" name="tool" value="{{ tool }}">
+                    <input type="hidden" name="server_id" value="{{ server.id }}">
+                    <button type="submit" name="enabled" value="{% if server.enabled %}{% else %}on{% endif %}" class="button {% if server.enabled %}ghost{% else %}primary{% endif %}">
+                      {% if server.enabled %}停用{% else %}启用{% endif %}
+                    </button>
+                  </form>
+                  <form method="post" action="{{ url_for('remove_mcp') }}">
+                    <input type="hidden" name="tool" value="{{ tool }}">
+                    <input type="hidden" name="server_id" value="{{ server.id }}">
+                    <button type="submit" class="button danger">删除</button>
+                  </form>
+                </div>
+              </article>
+              {% else %}
+              <p class="muted">暂无 MCP 服务器。</p>
+              {% endfor %}
+            </div>
+          </section>
+          <section class="detail-column">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">编辑</div>
+                  <h2>MCP 服务器</h2>
+                </div>
+              </div>
+              <form method="post" action="{{ url_for('save_mcp') }}" class="form">
+                <input type="hidden" name="tool" value="{{ tool }}">
+                <input type="hidden" name="server_id" value="{{ selected_mcp.id }}">
+                <label>显示名称<input name="name" value="{{ selected_mcp.name }}" required></label>
+                <label>传输方式
+                  <select name="transport">
+                    <option value="stdio" {% if selected_mcp.transport == 'stdio' %}selected{% endif %}>stdio</option>
+                    <option value="http" {% if selected_mcp.transport == 'http' %}selected{% endif %}>http</option>
+                  </select>
+                </label>
+                <label>Command<input name="command" value="{{ selected_mcp.command }}"></label>
+                <label>Args（空格分隔）<input name="args" value="{{ ' '.join(selected_mcp.args or []) }}"></label>
+                <label>URL<input name="url" value="{{ selected_mcp.url }}"></label>
+                <label>Env（每行 KEY=VALUE）<textarea name="env_text" rows="5">{% for key, value in selected_mcp.env.items() %}{{ key }}={{ value }}
+{% endfor %}</textarea></label>
+                <div class="button-row">
+                  <button type="submit" class="button primary">保存配置</button>
+                </div>
+              </form>
+            </section>
+          </section>
+        </section>
+        {% else %}
+        <section class="content-grid">
+          <section class="panel list-panel">
+            <div class="panel-head">
+              <div>
+                <div class="section-label">Skills</div>
+                <h2>{{ state[tool].skills|length }} 个技能记录</h2>
+              </div>
+              <form method="post" action="{{ url_for('scan_skills') }}">
+                <input type="hidden" name="tool" value="{{ tool }}">
+                <button type="submit" class="button ghost">扫描现有目录</button>
+              </form>
+            </div>
+            <div class="provider-list">
+              {% for skill in state[tool].skills %}
+              <article class="provider-row {% if selected_skill and skill.id == selected_skill.id %}is-selected{% endif %}">
+                <a class="provider-main" href="{{ url_for('index', tool=tool, view='skills', skill_id=skill.id) }}">
+                  <div class="provider-title-row">
+                    <h3>{{ skill.name }}</h3>
+                    {% if skill.enabled %}<span class="badge success">已同步</span>{% endif %}
+                  </div>
+                  <p class="provider-url">{{ skill.live_path or skill.source_path }}</p>
+                </a>
+              </article>
+              {% else %}
+              <p class="muted">暂无技能记录。</p>
+              {% endfor %}
+            </div>
+          </section>
+          <section class="detail-column">
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">导入</div>
+                  <h2>从本地路径导入技能</h2>
+                </div>
+              </div>
+              {% if tool == 'gemini' %}
+              <p class="muted">Gemini CLI 第一版不强造专属 skills 目录，只保留接口。</p>
+              {% else %}
+              <form method="post" action="{{ url_for('add_skill') }}" class="form">
+                <input type="hidden" name="tool" value="{{ tool }}">
+                <label>本地技能目录<input name="source_path" placeholder="/path/to/skill-dir" required></label>
+                <button type="submit" class="button primary">导入并同步</button>
+              </form>
+              {% endif %}
+            </section>
+
+            <section class="panel">
+              <div class="panel-head">
+                <div>
+                  <div class="section-label">同步状态</div>
+                  <h2>选中技能</h2>
+                </div>
+              </div>
+              {% if selected_skill %}
+              <div class="info-grid">
+                <div><strong>名称</strong><span>{{ selected_skill.name }}</span></div>
+                <div><strong>源路径</strong><code>{{ selected_skill.source_path }}</code></div>
+                <div><strong>目标路径</strong><code>{{ selected_skill.live_path }}</code></div>
+              </div>
+              {% if tool != 'gemini' %}
+              <form method="post" action="{{ url_for('toggle_skill') }}" class="inline-form">
+                <input type="hidden" name="tool" value="{{ tool }}">
+                <input type="hidden" name="skill_id" value="{{ selected_skill.id }}">
+                <label class="checkbox"><input type="checkbox" name="enabled" {% if selected_skill.enabled %}checked{% endif %}> 启用并同步到工具目录</label>
+                <button type="submit" class="button primary">保存状态</button>
+              </form>
+              {% endif %}
+              {% else %}
+              <p class="muted">先扫描或导入技能。</p>
+              {% endif %}
+            </section>
+          </section>
+        </section>
+        {% endif %}
+      </main>
+    </div>
+  </body>
+</html>
