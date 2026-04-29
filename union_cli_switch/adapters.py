@@ -16,15 +16,19 @@ from union_cli_switch.state import APP_DIR, tool_paths
 
 
 CODEX_DEFAULT_TEMPLATE: dict[str, Any] = {
-    "suppress_unstable_features_warning": True,
     "developer_instructions": "请使用中文回答，优先准确、简洁；涉及改代码时先说明将修改什么。",
+    "project_doc_fallback_filenames": ["AGENTS.md", "CLAUDE.md"],
     "approval_policy": "never",
     "sandbox_mode": "danger-full-access",
+    "network_access": True,
+    "shell_environment_policy": {
+        "inherit": "all",
+        "ignore_default_excludes": True,
+    },
     "model_provider": "custom",
-    "model": "gpt-5.4",
+    "model": "gpt-5.3-codex",
     "model_reasoning_effort": "medium",
     "model_reasoning_summary": "detailed",
-    "model_verbosity": "high",
     "model_providers": {
         "custom": {
             "name": "custom",
@@ -32,40 +36,6 @@ CODEX_DEFAULT_TEMPLATE: dict[str, Any] = {
             "wire_api": "responses",
             "requires_openai_auth": True,
         }
-    },
-    "features": {
-        "shell_tool": True,
-        "shell_snapshot": True,
-        "apply_patch_freeform": True,
-        "unified_exec": True,
-        "undo": True,
-        "multi_agent": True,
-        "child_agents_md": True,
-        "memories": True,
-        "sqlite": True,
-    },
-    "memories": {
-        "consolidation_model": "gpt-5.4",
-        "extract_model": "gpt-5.4",
-        "max_unused_days": 30,
-        "max_rollout_age_days": 45,
-        "max_raw_memories_for_consolidation": 512,
-    },
-    "shell_environment_policy": {
-        "inherit": "all",
-        "ignore_default_excludes": True,
-    },
-    "sandbox_workspace_write": {
-        "network_access": True,
-    },
-    "tui": {
-        "status_line": [
-            "model-with-reasoning",
-            "current-dir",
-            "git-branch",
-            "used-tokens",
-            "codex-version",
-        ]
     },
 }
 
@@ -173,7 +143,7 @@ def _codex_custom_template_block(provider: dict[str, Any]) -> dict[str, Any]:
     return {
         "name": _provider_slug(provider),
         "base_url": provider["base_url"],
-        "wire_api": provider["tool_config"].get("wire_api", "responses") or "responses",
+        "wire_api": "responses",
         "requires_openai_auth": True,
     }
 
@@ -303,19 +273,44 @@ def _apply_codex(provider: dict[str, Any], mcp_servers: list[dict[str, Any]], op
     assert isinstance(auth_path, Path)
 
     write_mode = str(options.get("write_mode", "preserve") or "preserve")
-    provider_slug = _provider_slug(provider)
     if write_mode == "template":
+        # 模板模式：使用模板基底，只替换字段
         config = tomllib.loads(load_codex_template_text())
-        config["model_providers"] = {provider_slug: _codex_custom_template_block(provider)}
+        provider_model = provider["tool_config"].get("model", "")
+        if provider_model:
+            config["model"] = provider_model
+        providers = config.get("model_providers", {})
+        if isinstance(providers, dict):
+            custom = providers.get("custom", {})
+            if isinstance(custom, dict):
+                if provider["base_url"]:
+                    custom["base_url"] = provider["base_url"]
     else:
+        # 不用模板：在配置下加入 custom 提供商并使用
         config = read_toml(config_path)
         providers = config.get("model_providers", {})
         if not isinstance(providers, dict):
             providers = {}
-        providers[provider_slug] = _codex_custom_template_block(provider)
+        # 创建或更新 custom 块
+        custom = providers.get("custom", {})
+        if not isinstance(custom, dict):
+            custom = {}
+        # name 固定为 custom
+        custom["name"] = "custom"
+        if provider["base_url"]:
+            custom["base_url"] = provider["base_url"]
+        if "wire_api" not in custom:
+            custom["wire_api"] = "responses"
+        if "requires_openai_auth" not in custom:
+            custom["requires_openai_auth"] = True
+        providers["custom"] = custom
         config["model_providers"] = providers
-    config["model_provider"] = provider_slug
-    config["model"] = provider["tool_config"].get("model", "")
+        # 设置 model_provider 为 custom
+        config["model_provider"] = "custom"
+        # 更新 model
+        provider_model = provider["tool_config"].get("model", "")
+        if provider_model:
+            config["model"] = provider_model
     if write_mode == "template":
         config.pop("review_model", None)
     config["mcp_servers"] = {
@@ -343,17 +338,16 @@ def _import_codex_providers() -> list[dict[str, Any]]:
     current_slug = str(config.get("model_provider", "")).strip()
     provider_block = {}
     if isinstance(providers, dict):
-        raw_block = providers.get("custom", {}) if "custom" in providers else providers.get(current_slug, {})
+        raw_block = providers.get(current_slug, {})
         provider_block = raw_block if isinstance(raw_block, dict) else {}
     api_key = str(auth.get("OPENAI_API_KEY", ""))
     return [{
         "id": "codex-live",
-        "name": str(provider_block.get("name", "custom") or "custom"),
+        "name": "default",
         "base_url": str(provider_block.get("base_url", "")),
         "api_key": api_key,
         "tool_config": {
             "model": str(config.get("model", "")),
-            "wire_api": str(provider_block.get("wire_api", "responses")),
         },
     }]
 

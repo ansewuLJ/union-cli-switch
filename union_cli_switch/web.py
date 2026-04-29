@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import logging
 from copy import deepcopy
 from pathlib import Path
@@ -42,7 +43,7 @@ PROVIDER_FIELDS = {
         "ANTHROPIC_DEFAULT_HAIKU_MODEL",
         "CLAUDE_CODE_SUBAGENT_MODEL",
     ],
-    "codex": ["model", "wire_api"],
+    "codex": ["model"],
     "gemini": ["GEMINI_MODEL"],
 }
 
@@ -343,6 +344,10 @@ def _redirect(tool: str, view: str, **params):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="union-cli-switch server")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to")
+    parser.add_argument("--port", type=int, default=8765, help="Port to bind to")
+    args = parser.parse_args()
+
     app = create_app()
-    logging.getLogger("werkzeug").setLevel(logging.ERROR)
-    app.run(host="127.0.0.1", port=8765, debug=False)
+    app.run(host=args.host, port=args.port, debug=True)

@@ -65,7 +65,6 @@ def default_provider(tool: str) -> dict[str, Any]:
     elif tool == "codex":
         base["tool_config"] = {
             "model": "",
-            "wire_api": "responses",
         }
     else:
         base["tool_config"] = {

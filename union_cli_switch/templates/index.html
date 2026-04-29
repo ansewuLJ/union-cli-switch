@@ -117,10 +117,9 @@
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
-          <div class="brand-mark">UC</div>
+          <div class="brand-mark">UCS</div>
           <div>
             <div class="brand-title">union-cli-switch</div>
-            <div class="brand-subtitle">Python user-level manager</div>
           </div>
         </div>
 
@@ -154,10 +153,7 @@
 
       <main class="workspace">
         <header class="topbar">
-          <div>
-            <h1>{{ tool_label }}</h1>
-            <p class="muted">只管理用户级配置，不碰项目级 MCP。页面主线固定为 provider、MCP、skills。</p>
-          </div>
+          <h1>{{ tool_label }}</h1>
           <div class="view-tabs">
             {% for item in ['providers', 'mcp', 'skills'] %}
             <a class="view-tab {% if view == item %}active{% endif %}" href="{{ url_for('index', tool=tool, view=item) }}">
